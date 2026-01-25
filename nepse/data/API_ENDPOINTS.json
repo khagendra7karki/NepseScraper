@@ -37,5 +37,7 @@
     "floor_sheet": "/api/nots/nepse-data/floorsheet",
     "todays_price": "/api/nots/nepse-data/today-price",
     "live-market": "/api/nots/lives-market",
-    "market-depth": "/api/nots/nepse-data/marketdepth/"
+    "market-depth": "/api/nots/nepse-data/marketdepth/",
+    "companies_news_url":"/api/nots/news/media/company-news/",
+    "company_financial_report_url": "/api/nots/application/reports/"
 }

@@ -8,19 +8,18 @@ import httpx
 import tqdm
 import tqdm.asyncio
 
-from nepse.DummyIDUtils import AsyncDummyIDManager, DummyIDManager
+from nepse.DummyIDUtils import AsyncDummyIDManager
 from nepse.Errors import (
     NepseInvalidClientRequest,
     NepseInvalidServerResponse,
     NepseNetworkError,
     NepseTokenExpired,
 )
-from nepse.TokenUtils import AsyncTokenManager, TokenManager
+from nepse.TokenUtils import AsyncTokenManager
 
 
 class _Nepse:
     def __init__(self, token_manager, dummy_id_manager):
-
         self.token_manager = token_manager(self)
 
         self.dummy_id_manager = dummy_id_manager(
@@ -410,6 +409,15 @@ class AsyncNepse(_Nepse):
         url = f"{self.api_end_points['company_price_volume_history']}{company_id}?&size=500&startDate={start_date}&endDate={end_date}"
         return (await self.requestGETAPI(url=url))["content"]
 
+    async def getCompaniesNews(self):
+        return await self.requestGETAPI(url=self.api_end_points["companies_news_url"])
+
+    async def getCompanyFinancialReports(self, symbol: str):
+        symbol = symbol.upper()
+        company_id = (await self.getSecurityIDKeyMap())[symbol]
+        url = f"{self.api_end_points['company_financial_report_url']}{company_id}"
+        return await self.requestGETAPI(url=url)
+
     # api requiring post method
     async def getDailyScripPriceGraph(self, symbol):
         symbol = symbol.upper()
@@ -428,7 +436,6 @@ class AsyncNepse(_Nepse):
         )
 
     async def getFloorSheet(self, show_progress=False):
-
         url = f"{self.api_end_points['floor_sheet']}?&size={self.floor_sheet_size}&sort=contractId,desc"
         sheet = await self.requestPOSTAPI(
             url=url, payload_generator=self.getPOSTPayloadIDForFloorSheet
@@ -493,207 +500,3 @@ class AsyncNepse(_Nepse):
         url = f"{self.api_end_points['market-depth']}{company_id[symbol]}/"
         result = await self.requestGETAPI(url=url)
         return result
-
-
-class Nepse(_Nepse):
-    def __init__(self):
-        super().__init__(TokenManager, DummyIDManager)
-        # internal flag to set tls verification true or false during http request
-        self.init_client(tls_verify=self._tls_verify)
-
-    ############################################### PRIVATE METHODS###############################################
-    def getPOSTPayloadIDForScrips(self):
-        dummy_id = self.getDummyID()
-        e = self.getDummyData()[dummy_id] + dummy_id + 2 * (date.today().day)
-        return e
-
-    def getPOSTPayloadID(self):
-        e = self.getPOSTPayloadIDForScrips()
-        post_payload_id = (
-            e
-            + self.token_manager.salts[3 if e % 10 < 5 else 1] * date.today().day
-            - self.token_manager.salts[(3 if e % 10 < 5 else 1) - 1]
-        )
-        return post_payload_id
-
-    def getPOSTPayloadIDForFloorSheet(self):
-        e = self.getPOSTPayloadIDForScrips()
-        post_payload_id = (
-            e
-            + self.token_manager.salts[1 if e % 10 < 4 else 3] * date.today().day
-            - self.token_manager.salts[(1 if e % 10 < 4 else 3) - 1]
-        )
-        return post_payload_id
-
-    def getAuthorizationHeaders(self):
-        headers = self.headers
-        access_token = self.token_manager.getAccessToken()
-
-        headers = {
-            "Authorization": f"Salter {access_token}",
-            "Content-Type": "application/json",
-            **self.headers,
-        }
-
-        return headers
-
-    def init_client(self, tls_verify):
-        self.client = httpx.Client(verify=tls_verify, http2=True, timeout=100)
-
-    def requestGETAPI(self, url, include_authorization_headers=True):
-        try:
-            response = self.client.get(
-                self.get_full_url(api_url=url),
-                headers=(
-                    self.getAuthorizationHeaders()
-                    if include_authorization_headers
-                    else self.headers
-                ),
-            )
-            return self.handle_response(response)
-        except (httpx.RemoteProtocolError, httpx.ReadError, httpx.ConnectError):
-            return self.requestGETAPI(url, include_authorization_headers)
-        except NepseTokenExpired:
-            self.token_manager.update()
-            return self.requestGETAPI(url)
-
-    def requestPOSTAPI(self, url, payload_generator):
-        try:
-            response = self.client.post(
-                self.get_full_url(api_url=url),
-                headers=self.getAuthorizationHeaders(),
-                data=json.dumps({"id": payload_generator()}),
-            )
-            return self.handle_response(response)
-        except (httpx.RemoteProtocolError, httpx.ReadError, httpx.ConnectError):
-            return self.requestPOSTAPI(url, payload_generator)
-        except NepseTokenExpired:
-            self.token_manager.update()
-            return self.requestPOSTAPI(url, payload_generator)
-
-    ############################################### PUBLIC METHODS###############################################
-    # api requiring get method
-    def getCompanyList(self):
-        self.company_list = self.requestGETAPI(
-            url=self.api_end_points["company_list_url"]
-        )
-        # return a copy of self.company_list so than changes after return are not perisistent
-        return list(self.company_list)
-
-    def getSecurityList(self):
-        self.security_list = self.requestGETAPI(
-            url=self.api_end_points["security_list_url"]
-        )
-        # return a copy of self.company_list so than changes after return are not perisistent
-        return list(self.security_list)
-
-    def getSectorScrips(self):
-        if self.sector_scrips is None:
-            company_info_dict = {
-                company_info["symbol"]: company_info
-                for company_info in self.getCompanyList()
-            }
-            sector_scrips = defaultdict(list)
-
-            for security_info in self.getSecurityList():
-                symbol = security_info["symbol"]
-                if company_info_dict.get(symbol):
-                    company_info = company_info_dict[symbol]
-                    sector_name = company_info["sectorName"]
-                    sector_scrips[sector_name].append(symbol)
-                else:
-                    sector_scrips["Promoter Share"].append(symbol)
-
-            self.sector_scrips = dict(sector_scrips)
-        # return a copy of self.sector_scrips so than changes after return are not perisistent
-        return dict(self.sector_scrips)
-
-    def getCompanyIDKeyMap(self, force_update=False):
-        if self.company_symbol_id_keymap is None or force_update:
-            company_list = self.getCompanyList()
-            self.company_symbol_id_keymap = {
-                company["symbol"]: company["id"] for company in company_list
-            }
-        return self.company_symbol_id_keymap
-
-    def getSecurityIDKeyMap(self, force_update=False):
-        if self.security_symbol_id_keymap is None or force_update:
-            security_list = self.getSecurityList()
-            self.security_symbol_id_keymap = {
-                security["symbol"]: security["id"] for security in security_list
-            }
-        return self.security_symbol_id_keymap
-
-    def getCompanyPriceVolumeHistory(self, symbol, start_date=None, end_date=None):
-        end_date = end_date if end_date else date.today()
-        start_date = start_date if start_date else (end_date - timedelta(days=365))
-        symbol = symbol.upper()
-        company_id = self.getSecurityIDKeyMap()[symbol]
-        url = f"{self.api_end_points['company_price_volume_history']}{company_id}?&size=500&startDate={start_date}&endDate={end_date}"
-        return self.requestGETAPI(url=url)
-
-    # api requiring post method
-    def getDailyScripPriceGraph(self, symbol):
-        symbol = symbol.upper()
-        company_id = self.getSecurityIDKeyMap()[symbol]
-        return self.requestPOSTAPI(
-            url=f"{self.api_end_points['company_daily_graph']}{company_id}",
-            payload_generator=self.getPOSTPayloadIDForScrips,
-        )
-
-    def getCompanyDetails(self, symbol):
-        symbol = symbol.upper()
-        company_id = self.getSecurityIDKeyMap()[symbol]
-        return self.requestPOSTAPI(
-            url=f"{self.api_end_points['company_details']}{company_id}",
-            payload_generator=self.getPOSTPayloadIDForScrips,
-        )
-
-    def getFloorSheet(self, show_progress=False):
-        url = f"{self.api_end_points['floor_sheet']}?&size={self.floor_sheet_size}&sort=contractId,desc"
-        sheet = self.requestPOSTAPI(
-            url=url, payload_generator=self.getPOSTPayloadIDForFloorSheet
-        )
-        floor_sheets = sheet["floorsheets"]["content"]
-        max_page = sheet["floorsheets"]["totalPages"]
-        page_range = (
-            tqdm.tqdm(range(1, max_page)) if show_progress else range(1, max_page)
-        )
-        for page_number in page_range:
-            current_sheet = self.requestPOSTAPI(
-                url=f"{url}&page={page_number}",
-                payload_generator=self.getPOSTPayloadIDForFloorSheet,
-            )
-            current_sheet_content = current_sheet["floorsheets"]["content"]
-            floor_sheets.extend(current_sheet_content)
-        return floor_sheets
-
-    def getFloorSheetOf(self, symbol, business_date=None):
-        # business date can be YYYY-mm-dd string or date object
-        symbol = symbol.upper()
-        company_id = self.getSecurityIDKeyMap()[symbol]
-        business_date = (
-            date.fromisoformat(f"{business_date}") if business_date else date.today()
-        )
-        url = f"{self.api_end_points['company_floorsheet']}{company_id}?&businessDate={business_date}&size={self.floor_sheet_size}&sort=contractid,desc"
-        sheet = self.requestPOSTAPI(
-            url=url, payload_generator=self.getPOSTPayloadIDForFloorSheet
-        )
-        if sheet:  # sheet might be empty
-            floor_sheets = sheet["floorsheets"]["content"]
-            for page in range(1, sheet["floorsheets"]["totalPages"]):
-                next_sheet = self.requestPOSTAPI(
-                    url=f"{url}&page={page}",
-                    payload_generator=self.getPOSTPayloadIDForFloorSheet,
-                )
-                next_floor_sheet = next_sheet["floorsheets"]["content"]
-                floor_sheets.extend(next_floor_sheet)
-        else:
-            floor_sheets = []
-        return floor_sheets
-
-    def getSymbolMarketDepth(self, symbol):
-        symbol = symbol.upper()
-        company_id = self.getSecurityIDKeyMap()[symbol]
-        url = f"{self.api_end_points['market-depth']}{company_id}/"
-        return self.requestGETAPI(url=url)
