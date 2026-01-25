@@ -16,7 +16,6 @@ classifiers = [
 dependencies = [
     "httpx[http2]==0.27.2",
     "pywasm==1.2.2",
-    "flask==3.0.3",
     "tqdm==4.66.5",
 ]
 
