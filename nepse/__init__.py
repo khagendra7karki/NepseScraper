@@ -13,4 +13,4 @@ __all__ = [
 ]
 
 __version__ = "0.6.2"
-__release_date__ = timestamp(2025, 01, 25)
+__release_date__ = timestamp(2025, 1, 25)
