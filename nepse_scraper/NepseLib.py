@@ -188,7 +188,10 @@ class _Nepse:
 
     # --- POST endpoints ---
     def getPriceVolumeHistory(self, business_date=None):
-        url = f"{self.api_end_points['todays_price']}?size=500&businessDate={business_date}"
+        if business_date:
+            url = f"{self.api_end_points['todays_price']}?size=500&businessDate={business_date}"
+        else:
+            url = f"{self.api_end_points['todays_price']}?size=500"
         return self.requestPOSTAPI(
             url=url,
             payload_generator=self.getPOSTPayloadIDForFloorSheet,

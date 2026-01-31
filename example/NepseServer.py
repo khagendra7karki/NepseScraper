@@ -4,14 +4,13 @@ nepse_manager = NepseScraper()
 nepse_manager.setTLSVerification(False)
 
 
-def _getCorporateDisclosure():
-    result = nepse_manager.getCompanyFinancialReports("hathy")
+def _getTodayPrice():
+    today = "2026-01-31"
+    result = nepse_manager.getPriceVolumeHistory()
     print(result)
 
 
-def _getCompanyDetail():
-    result = nepse_manager.getCompanyDetails("hathy")
-    print(result)
-
-
-_getCompanyDetail()
+try:
+    _getTodayPrice()
+except Exception as exc:
+    print(exc.__getattribute__("meta"))
