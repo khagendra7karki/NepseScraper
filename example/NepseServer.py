@@ -1,19 +1,19 @@
 import asyncio
 import json
-from nepse import AsyncNepse
+from nepse import Nepse
 
-nepse_manager = AsyncNepse()
+nepse_manager = Nepse()
 nepse_manager.setTLSVerification(False)
 
 
-async def _getCorporateDisclosure():
-    result = await nepse_manager.getCompanyFinancialReports("hathy")
+def _getCorporateDisclosure():
+    result = nepse_manager.getCompanyFinancialReports("hathy")
     print(result)
 
 
-async def _getCompanyDetail():
-    result = await nepse_manager.getCompanyDetails("hathy")
+def _getCompanyDetail():
+    result = nepse_manager.getCompanyDetails("hathy")
     print(result)
 
 
-asyncio.run(_getCompanyDetail())
+_getCompanyDetail()
