@@ -1,8 +1,6 @@
-import asyncio
-import json
-from nepse import Nepse
+from nepse_scraper import NepseScraper
 
-nepse_manager = Nepse()
+nepse_manager = NepseScraper()
 nepse_manager.setTLSVerification(False)
 
 

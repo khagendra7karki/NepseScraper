@@ -1,4 +1,4 @@
-from nepse.NepseLib import Nepse
+from nepse_scraper.NepseLib import NepseScraper
 
 
 # function added to reduce namespace pollution (importing datetime)
@@ -9,8 +9,8 @@ def timestamp(year, month, date):
 
 
 __all__ = [
-    "Nepse",
+    "NepseScraper",
 ]
 
-__version__ = "0.6.2"
+__version__ = "0.0.1"
 __release_date__ = timestamp(2026, 1, 31)

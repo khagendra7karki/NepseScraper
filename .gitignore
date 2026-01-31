@@ -5,4 +5,5 @@ __*
 !.gitignore
 !.github/
 build/
-nepse.egg-info/
+nepse_scraper.egg-info
+pyrightconfig.json
