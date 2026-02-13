@@ -8,7 +8,6 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 
 import httpx
-import tqdm
 
 from nepse_scraper.DummyIDUtils import DummyIDManager
 from nepse_scraper.TokenUtils import TokenManager
@@ -566,7 +565,7 @@ class NepseScraper(_Nepse):
             payload_generator=self.getPOSTPayloadIDForScrips,
         )
 
-    def getFloorSheet(self, show_progress=False):
+    def getFloorSheet(self, delay: float = 0.2):
         """Aggregated scraper with request chain for paginated floorsheet"""
         url = f"{self.api_end_points['floor_sheet']}?size={self.floor_sheet_size}&sort=contractId,desc"
 
@@ -601,11 +600,7 @@ class NepseScraper(_Nepse):
         all_records.extend(first_data["floorsheets"]["content"])
         total_pages = first_data["floorsheets"]["totalPages"]
 
-        iterator = (
-            tqdm.tqdm(range(1, total_pages)) if show_progress else range(1, total_pages)
-        )
-
-        for page_num in iterator:
+        for page_num in range(1, total_pages):
             page_result = self.requestPOSTAPI(
                 url=f"{url}&page={page_num}",
                 payload_generator=self.getPOSTPayloadIDForFloorSheet,
@@ -617,6 +612,7 @@ class NepseScraper(_Nepse):
             if "floorsheets" in page_data and "content" in page_data["floorsheets"]:
                 all_records.extend(page_data["floorsheets"]["content"])
 
+            time.sleep(delay)
         total_time = round((time.perf_counter() - total_start) * 1000, 2)
         total_retries = sum(m.get("retry_count", 0) for m in request_chain)
 
