@@ -3,6 +3,7 @@
 import json
 import pathlib
 import time
+from typing import Any
 import uuid
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
@@ -186,7 +187,7 @@ class _Nepse:
         )
 
     # --- POST endpoints ---
-    def getPriceVolumeHistory(self, business_date=None):
+    def getPriceVolumeHistory(self, business_date=None) -> dict[str, Any]:
         if business_date:
             url = f"{self.api_end_points['todays_price']}?size=500&businessDate={business_date}"
         else:
@@ -349,16 +350,13 @@ class NepseScraper(_Nepse):
 
         start_time = time.perf_counter()
         retry_count = 0
-        last_exception = None
 
         while retry_count < self.MAX_RETRIES:
             try:
                 if method == "GET":
                     response = self.client.get(full_url, headers=headers)
                 else:
-                    response = self.client.post(
-                        full_url, headers=headers, data=json.dumps(payload)
-                    )
+                    response = self.client.post(full_url, headers=headers, json=payload)
 
                 meta["response_time_ms"] = round(
                     (time.perf_counter() - start_time) * 1000, 2
@@ -382,19 +380,33 @@ class NepseScraper(_Nepse):
                     meta["status"] = "error"
                     raise NepseNetworkError(f"HTTP {response.status_code}", meta=meta)
 
+            except NepseTokenExpired as e:
+                retry_count += 1
+
+                if retry_count < self.MAX_RETRIES:
+                    # Force token refresh
+                    self.token_manager.update()
+                    # Refresh headers with new token for the retry
+                    headers = self.getAuthorizationHeaders()
+                    # Update meta with new sanitized headers
+                    meta["request"]["headers"] = _sanitize_headers(headers)
+                    continue
+                else:
+                    meta["retry_count"] = retry_count
+                    meta["status"] = "error"
+                    raise NepseNetworkError(
+                        f"Failed after {retry_count} retries: Token refresh failed",
+                        meta=meta,
+                    ) from e
+
             except (
                 httpx.RemoteProtocolError,
                 httpx.ReadError,
                 httpx.ConnectError,
-                NepseTokenExpired,
             ) as e:
                 retry_count += 1
-                last_exception = e
 
-                if isinstance(e, NepseTokenExpired) and retry_count < self.MAX_RETRIES:
-                    self.token_manager.update()
-                    continue
-                elif retry_count >= self.MAX_RETRIES:
+                if retry_count >= self.MAX_RETRIES:
                     meta["retry_count"] = retry_count
                     meta["status"] = "error"
                     raise NepseNetworkError(

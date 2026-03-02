@@ -12,5 +12,5 @@ __all__ = [
     "NepseScraper",
 ]
 
-__version__ = "0.0.1"
-__release_date__ = timestamp(2026, 1, 31)
+__version__ = "0.0.2"
+__release_date__ = timestamp(2026, 3, 2)
